@@ -29,8 +29,8 @@ public class ServiceController {
         currentEnv.append("</ul>");
 
         return "<html><body>" +
-                "<h1>Welcome from ACP CW2</h1>" +
-                "<h2>Environment variables </br><div> " + currentEnv.toString() + "</div></h2>" +
+                "<h1>Welcome to ACP CW2!</h1>" +
+                "<h2>Environment Variables </br><div> " + currentEnv.toString() + "</div></h2>" +
                 "</body></html>";
     }
 

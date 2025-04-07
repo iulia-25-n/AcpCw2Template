@@ -19,9 +19,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * RabbitMqController is a REST controller that provides endpoints for sending and receiving stock symbols
@@ -55,7 +52,7 @@ public class RabbitMqController {
 
     // PUT endpoint (writing messages)
     @PutMapping("/{queueName}/{messageCount}")
-    public void putMessages(@PathVariable String queueName, @PathVariable int messageCount) {
+    public void MessagesPUT(@PathVariable String queueName, @PathVariable int messageCount) {
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(rabbitMqHost);
         factory.setPort(rabbitMqPort);
@@ -67,18 +64,18 @@ public class RabbitMqController {
 
             for (int i = 0; i < messageCount; i++) {
                 String message = String.format("{\"uid\":\"%s\",\"counter\":%d}", STUDENT_UID, i);
-                channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8));
+                channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8)); //this took forever
                 System.out.printf("[x] Sent: %s\n", message);
             }
 
         } catch (Exception e) {
-            throw new RuntimeException("Error while sending messages", e);
+            throw new RuntimeException("Encountered an error while sending messages.", e);
         }
     }
 
     // GET endpoint (reading messages)
     @GetMapping("/{queueName}/{timeoutInMsec}")
-    public List<String> getMessages(@PathVariable String queueName, @PathVariable int timeoutInMsec) {
+    public List<String> MessagesGET(@PathVariable String queueName, @PathVariable int timeoutInMsec) {
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(rabbitMqHost);
         factory.setPort(rabbitMqPort);
@@ -101,7 +98,7 @@ public class RabbitMqController {
             channel.basicCancel(consumerTag);  // stop consuming after timeout
 
         } catch (Exception e) {
-            throw new RuntimeException("Error while receiving messages", e);
+            throw new RuntimeException("Encountered an error while receiving messages.", e);
         }
 
         return result;
@@ -126,7 +123,7 @@ public class RabbitMqController {
 
             logger.info("Successfully sent all JSON messages to {}", queueName);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to send JSON messages to RabbitMQ", e);
+            throw new RuntimeException("Failed to send JSON messages to RabbitMQ.", e);
         }
     }
 
@@ -170,12 +167,12 @@ public class RabbitMqController {
                 result.add(message);
             };
 
-            System.out.println("start consuming events - to stop press CTRL+C");
+            System.out.println("Start consuming events - to stop please press CTRL+c");
             // Consume with Auto-ACK
             channel.basicConsume(queueName, true, deliverCallback, consumerTag -> {});
             Thread.sleep(consumeTimeMsec);
 
-            System.out.printf("done consuming events. %d record(s) received\n", result.size());
+            System.out.printf("Done consuming events. %d record(s) received\n", result.size());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

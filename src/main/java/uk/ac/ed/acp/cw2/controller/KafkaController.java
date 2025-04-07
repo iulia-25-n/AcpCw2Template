@@ -103,7 +103,7 @@ public class KafkaController {
     //CW
     // PUT Endpoint: Writing messages to Kafka
     @PutMapping("/{writeTopic}/{messageCount}")
-    public String putMessages(@PathVariable String writeTopic, @PathVariable int messageCount) {
+    public String MessagesPUT(@PathVariable String writeTopic, @PathVariable int messageCount) {
         logger.info("Writing {} messages to topic {}", messageCount, writeTopic);
         Properties kafkaProps = getKafkaProperties(environment);
 
@@ -120,7 +120,7 @@ public class KafkaController {
             }
         } catch (Exception e) {
             logger.error("Kafka producer error", e);
-            throw new RuntimeException("Failed to send Kafka messages", e);
+            throw new RuntimeException("Failed to send Kafka messages!", e);
         }
 
         return "Kafka messages sent successfully!";
@@ -128,7 +128,7 @@ public class KafkaController {
 
     // GET Endpoint: Reading messages from Kafka
     @GetMapping("/{readTopic}/{timeoutInMsec}")
-    public List<String> getMessages(@PathVariable String readTopic, @PathVariable int timeoutInMsec) {
+    public List<String> MessagesGET(@PathVariable String readTopic, @PathVariable int timeoutInMsec) {
         logger.info("Reading messages from topic {}", readTopic);
         Properties kafkaProps = getKafkaProperties(environment);
 
@@ -144,7 +144,7 @@ public class KafkaController {
             }
         } catch (Exception e) {
             logger.error("Kafka consumer error", e);
-            throw new RuntimeException("Failed to read Kafka messages", e);
+            throw new RuntimeException("Failed to read Kafka messages!", e);
         }
 
         return result;
@@ -177,7 +177,7 @@ public class KafkaController {
             producer.send(record);
             return ResponseEntity.ok("Message published to Kafka topic: " + topic);
         } catch (Exception e) {
-            System.out.println("Error publishing message to Kafka topic: " + topic);
+            System.out.println("Encountered error publishing message to Kafka topic: " + topic);
             e.printStackTrace();
             return ResponseEntity.status(500).body("Kafka publish failed: " + e.getMessage());
         }
@@ -282,7 +282,7 @@ public class KafkaController {
 
         } catch (Exception e) {
             logger.error("Error processing messages", e);
-            throw new RuntimeException("Failed to process messages", e);
+            throw new RuntimeException("Failed to process the messages!", e);
         }
 
         return "Message processing completed!";
