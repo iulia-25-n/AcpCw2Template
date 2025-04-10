@@ -100,8 +100,7 @@ public class KafkaController {
 
         return kafkaProps;
     }
-    //CW
-    // PUT Endpoint: Writing messages to Kafka
+
     @PutMapping("/{writeTopic}/{messageCount}")
     public String MessagesPUT(@PathVariable String writeTopic, @PathVariable int messageCount) {
         logger.info("Writing {} messages to topic {}", messageCount, writeTopic);
@@ -208,86 +207,6 @@ public class KafkaController {
         return factory;
     }
 
-    @PostMapping("/processMessages")
-    public String processMessages(@RequestBody Map<String, Object> request) {
-        String readTopic = (String) request.get("readTopic");
-        String writeQueueGood = (String) request.get("writeQueueGood");
-        String writeQueueBad = (String) request.get("writeQueueBad");
-        int messageCount = (int) request.get("messageCount");
-
-        if(messageCount > 500 ){
-            messageCount = 500;
-        }
-
-        Properties kafkaProps = getKafkaProperties(environment);
-        double goodTotal = 0.0;
-        double badTotal = 0.0;
-
-        ConnectionFactory factory = getRabbitMqFactory();
-
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(kafkaProps);
-             Connection connection = factory.newConnection();
-             Channel channel = connection.createChannel()) {
-
-            channel.queueDeclare(writeQueueGood, false, false, false, null);
-            channel.queueDeclare(writeQueueBad, false, false, false, null);
-
-            consumer.subscribe(Collections.singletonList(readTopic));
-            consumer.poll(Duration.ofMillis(500)); // initial poll
-            consumer.seekToBeginning(consumer.assignment());
-
-            int processed = 0;
-            while (processed < messageCount) {
-                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
-
-                for (ConsumerRecord<String, String> record : records) {
-                    if (processed >= messageCount) break;
-                    processed++;
-                    System.out.println(record.topic() + " " + record.partition() + " " + record.offset() + " " + record.value()+ " \n record:" + record);
-                    JSONObject json = new JSONObject(record.value());
-                    System.out.println(json);
-                    String key = json.getString("key");
-                    double value = json.getDouble("value");
-                    System.out.println("✅ Processed message:\n" + json.toString(2));
-                    if ((key.length() == 4) || (key.length() == 3)) { // good message
-                        goodTotal += value;
-                        json.put("runningTotalValue", goodTotal);
-
-                        String uuid = storeInAcpStorage(json.toString());
-                        System.out.println(uuid);
-                        json.put("uuid", uuid);
-
-                        channel.basicPublish("", writeQueueGood, null, json.toString().getBytes());
-                    } else { // bad message
-                        badTotal += value;
-                        channel.basicPublish("", writeQueueBad, null, json.toString().getBytes());
-                    }
-                }
-            }
-
-            // Send TOTAL packets
-            JSONObject goodTotalJson = new JSONObject();
-            goodTotalJson.put("uid", STUDENT_UID);
-            goodTotalJson.put("key", "TOTAL");
-            goodTotalJson.put("comment", "");
-            goodTotalJson.put("value", goodTotal);
-            channel.basicPublish("", writeQueueGood, null, goodTotalJson.toString().getBytes());
-
-            JSONObject badTotalJson = new JSONObject();
-            badTotalJson.put("uid", STUDENT_UID);
-            badTotalJson.put("key", "TOTAL");
-            badTotalJson.put("comment", "");
-            badTotalJson.put("value", badTotal);
-            channel.basicPublish("", writeQueueBad, null, badTotalJson.toString().getBytes());
-
-        } catch (Exception e) {
-            logger.error("Error processing messages", e);
-            throw new RuntimeException("Failed to process the messages!", e);
-        }
-
-        return "Message processing completed!";
-    }
-
     @PostMapping("/sendStockSymbols/{symbolTopic}/{symbolCount}")
     public void sendStockSymbols(@PathVariable String symbolTopic, @PathVariable int symbolCount) {
         logger.info(String.format("Writing %d symbols in topic %s", symbolCount, symbolTopic));
@@ -334,97 +253,5 @@ public class KafkaController {
         }
 
         return result;
-    }
-
-
-    @PostMapping("/transformMessages")
-    public String transformMessages(@RequestBody Map<String, Object> request) {
-        String readQueue = (String) request.get("readQueue");
-        String writeQueue = (String) request.get("writeQueue");
-        int messageCount = (int) request.get("messageCount");
-
-        Jedis jedis = new Jedis(environment.getRedisHost(), environment.getRedisPort());
-
-        ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost(environment.getRabbitMqHost());
-        factory.setPort(environment.getRabbitMqPort());
-
-        AtomicInteger totalMessagesProcessed = new AtomicInteger(0);
-        AtomicInteger totalMessagesWritten = new AtomicInteger(0);
-        AtomicInteger totalRedisUpdates = new AtomicInteger(0);
-        AtomicReference<Double> totalValueWritten = new AtomicReference<>(0.0);
-        AtomicReference<Double> totalAdded = new AtomicReference<>(0.0);
-
-        try (Connection connection = factory.newConnection();
-             Channel channel = connection.createChannel()) {
-
-            channel.queueDeclare(readQueue, false, false, false, null);
-            channel.queueDeclare(writeQueue, false, false, false, null);
-
-            DeliverCallback deliverCallback = (consumerTag, delivery) -> {
-                String msgBody = new String(delivery.getBody(), StandardCharsets.UTF_8);
-                JSONObject message = new JSONObject(msgBody);
-                System.out.println("📥 Received message: " + message);
-
-                totalMessagesProcessed.getAndIncrement();
-
-                if (message.has("version") && message.has("value")) {
-                    String key = message.getString("key");
-                    int version = message.getInt("version");
-                    double value = message.getDouble("value");
-
-                    String redisKey = "version:" + key;
-                    int storedVersion = jedis.exists(redisKey) ? Integer.parseInt(jedis.get(redisKey)) : -1;
-
-                    if (version > storedVersion) {
-                        jedis.set(redisKey, String.valueOf(version));
-
-                        // Modify value and enrich message
-                        double updatedValue = value + 10.5;
-                        message.put("value", updatedValue);
-
-                        totalRedisUpdates.incrementAndGet();
-                        totalAdded.updateAndGet(v -> v + 10.5);
-                        totalValueWritten.updateAndGet(v -> v + updatedValue);
-                        totalMessagesWritten.incrementAndGet();
-
-                        channel.basicPublish("", writeQueue, null, message.toString().getBytes(StandardCharsets.UTF_8));
-                        System.out.println("✅ Written updated version for key " + key);
-                    } else {
-                            channel.basicPublish("", writeQueue, null, msgBody.getBytes(StandardCharsets.UTF_8));
-                            totalMessagesWritten.incrementAndGet();
-                            totalValueWritten.updateAndGet(v -> v + value);
-                            System.out.println("↩️ Wrote original (unchanged) message for stale version of key " + key);
-                        }
-                    }
-                else if (message.has("key")) {
-                    String key = message.getString("key");
-                    jedis.del("version:" + key);
-
-                    JSONObject summary = new JSONObject();
-                    summary.put("totalMessagesProcessed", totalMessagesProcessed.get());
-                    summary.put("totalMessagesWritten", totalMessagesWritten.get());
-                    summary.put("totalRedisUpdates", totalRedisUpdates.get());
-                    summary.put("totalValueWritten", totalValueWritten.get());
-                    summary.put("totalAdded", totalAdded.get());
-
-                    channel.basicPublish("", writeQueue, null, summary.toString().getBytes(StandardCharsets.UTF_8));
-                    System.out.println("🧾 Sent summary for key: " + key);
-                }
-            };
-
-            String consumerTag = channel.basicConsume(readQueue, true, deliverCallback, consumerTag1 -> {});
-            while (totalMessagesProcessed.get() < messageCount) {
-                Thread.sleep(50);
-            }
-            channel.basicCancel(consumerTag);
-
-        } catch (Exception e) {
-            throw new RuntimeException("Error processing transformMessages", e);
-        } finally {
-            jedis.close();
-        }
-
-        return "Transform processing complete!";
     }
 }
