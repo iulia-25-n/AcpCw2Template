@@ -20,7 +20,7 @@ import java.util.*;
  * through RabbitMQ. This class interacts with a RabbitMQ environment which is configured dynamically during runtime.
  */
 @RestController()
-@RequestMapping("/rabbitmq")
+@RequestMapping("/rabbitMq")
 public class RabbitMqController {
 
     private static final String STUDENT_UID = "s2751499"; // replace with your UID
