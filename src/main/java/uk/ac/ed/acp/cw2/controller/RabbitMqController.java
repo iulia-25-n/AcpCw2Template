@@ -2,10 +2,11 @@ package uk.ac.ed.acp.cw2.controller;
 
 
 import com.rabbitmq.client.DeliverCallback;
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity; //CW
+import org.springframework.http.ResponseEntity; // for coursework
 import org.springframework.web.bind.annotation.*;
 import uk.ac.ed.acp.cw2.data.RuntimeEnvironment;
 import com.rabbitmq.client.Channel;
@@ -25,10 +26,11 @@ public class RabbitMqController {
 
     private static final String STUDENT_UID = "s2751499"; // replace with your UID
     private static final Logger logger = LoggerFactory.getLogger(RabbitMqController.class);
+    @Getter
     private final RuntimeEnvironment environment;
     private final String[] stockSymbols = "AAPL,MSFT,GOOG,AMZN,TSLA,JPMC,CATP,UNIL,LLOY".split(",");
 
-    private ConnectionFactory factory = null;
+    private final ConnectionFactory factory;
 
     public RabbitMqController(RuntimeEnvironment environment) {
         this.environment = environment;
@@ -149,7 +151,7 @@ public class RabbitMqController {
 
     @GetMapping("/receiveStockSymbols/{queueName}/{consumeTimeMsec}")
     public List<String> receiveStockSymbols(@PathVariable String queueName, @PathVariable int consumeTimeMsec) {
-        logger.info(String.format("Reading stock-symbols from queue %s", queueName));
+        logger.info("Reading stock-symbols from queue {}", queueName);
         List<String> result = new ArrayList<>();
 
         try (Connection connection = factory.newConnection();
@@ -174,4 +176,5 @@ public class RabbitMqController {
 
         return result;
     }
+
 }
