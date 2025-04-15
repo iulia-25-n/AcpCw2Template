@@ -24,13 +24,12 @@ import java.util.*;
 @RequestMapping("/rabbitMq")
 public class RabbitMqController {
 
-    private static final String STUDENT_UID = "s2751499"; // replace with your UID
+    private static final String STUDENT_UID = "s2751499"; // my UID
     private static final Logger logger = LoggerFactory.getLogger(RabbitMqController.class);
-    @Getter
     private final RuntimeEnvironment environment;
     private final String[] stockSymbols = "AAPL,MSFT,GOOG,AMZN,TSLA,JPMC,CATP,UNIL,LLOY".split(",");
 
-    private final ConnectionFactory factory;
+    private ConnectionFactory factory = null;
 
     public RabbitMqController(RuntimeEnvironment environment) {
         this.environment = environment;
@@ -41,18 +40,14 @@ public class RabbitMqController {
 
 
     public final String StockSymbolsConfig = "stock.symbols";
-    @Value("${RABBITMQ_HOST}")
-    private String rabbitMqHost;
 
-    @Value("${RABBITMQ_PORT}")
-    private int rabbitMqPort;
 
     // PUT endpoint (writing messages)
     @PutMapping("/{queueName}/{messageCount}")
     public void MessagesPUT(@PathVariable String queueName, @PathVariable int messageCount) {
         ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost(rabbitMqHost);
-        factory.setPort(rabbitMqPort);
+        factory.setHost(environment.getRabbitMqHost());
+        factory.setPort(environment.getRabbitMqPort());
 
         try (Connection connection = factory.newConnection();
              Channel channel = connection.createChannel()) {
@@ -74,8 +69,8 @@ public class RabbitMqController {
     @GetMapping("/{queueName}/{timeoutInMsec}")
     public List<String> MessagesGET(@PathVariable String queueName, @PathVariable int timeoutInMsec) {
         ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost(rabbitMqHost);
-        factory.setPort(rabbitMqPort);
+        factory.setHost(environment.getRabbitMqHost());
+        factory.setPort(environment.getRabbitMqPort());
 
         List<String> result = new ArrayList<>();
 
@@ -124,57 +119,57 @@ public class RabbitMqController {
         }
     }
 
-    @PostMapping("/sendStockSymbols/{queueName}/{symbolCount}")
-    public void sendStockSymbols(@PathVariable String queueName, @PathVariable int symbolCount) {
-        logger.info("Writing {} symbols in queue {}", symbolCount, queueName);
-
-        try (Connection connection = factory.newConnection();
-             Channel channel = connection.createChannel()) {
-
-            channel.queueDeclare(queueName, false, false, false, null);
-
-            for (int i = 0; i < symbolCount; i++) {
-                final String symbol = stockSymbols[new Random().nextInt(stockSymbols.length)];
-                final String value = String.valueOf(i);
-
-                String message = String.format("%s:%s", symbol, value);
-
-                channel.basicPublish("", queueName, null, message.getBytes());
-                System.out.println(" [x] Sent message: " + message + " to queue: " + queueName);
-            }
-
-            logger.info("{} record(s) sent to Kafka\n", symbolCount);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @GetMapping("/receiveStockSymbols/{queueName}/{consumeTimeMsec}")
-    public List<String> receiveStockSymbols(@PathVariable String queueName, @PathVariable int consumeTimeMsec) {
-        logger.info("Reading stock-symbols from queue {}", queueName);
-        List<String> result = new ArrayList<>();
-
-        try (Connection connection = factory.newConnection();
-             Channel channel = connection.createChannel()) {
-
-
-            DeliverCallback deliverCallback = (consumerTag, delivery) -> {
-                String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
-                System.out.printf("[%s]:%s -> %s", queueName, delivery.getEnvelope().getRoutingKey(), message);
-                result.add(message);
-            };
-
-            System.out.println("Start consuming events - to stop please press CTRL+c");
-            // Consume with Auto-ACK
-            channel.basicConsume(queueName, true, deliverCallback, consumerTag -> {});
-            Thread.sleep(consumeTimeMsec);
-
-            System.out.printf("Done consuming events. %d record(s) received\n", result.size());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        return result;
-    }
+//    @PostMapping("/sendStockSymbols/{queueName}/{symbolCount}")
+//    public void sendStockSymbols(@PathVariable String queueName, @PathVariable int symbolCount) {
+//        logger.info("Writing {} symbols in queue {}", symbolCount, queueName);
+//
+//        try (Connection connection = factory.newConnection();
+//             Channel channel = connection.createChannel()) {
+//
+//            channel.queueDeclare(queueName, false, false, false, null);
+//
+//            for (int i = 0; i < symbolCount; i++) {
+//                final String symbol = stockSymbols[new Random().nextInt(stockSymbols.length)];
+//                final String value = String.valueOf(i);
+//
+//                String message = String.format("%s:%s", symbol, value);
+//
+//                channel.basicPublish("", queueName, null, message.getBytes());
+//                System.out.println(" [x] Sent message: " + message + " to queue: " + queueName);
+//            }
+//
+//            logger.info("{} record(s) sent to Kafka\n", symbolCount);
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
+//
+//    @GetMapping("/receiveStockSymbols/{queueName}/{consumeTimeMsec}")
+//    public List<String> receiveStockSymbols(@PathVariable String queueName, @PathVariable int consumeTimeMsec) {
+//        logger.info("Reading stock-symbols from queue {}", queueName);
+//        List<String> result = new ArrayList<>();
+//
+//        try (Connection connection = factory.newConnection();
+//             Channel channel = connection.createChannel()) {
+//
+//
+//            DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+//                String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
+//                System.out.printf("[%s]:%s -> %s", queueName, delivery.getEnvelope().getRoutingKey(), message);
+//                result.add(message);
+//            };
+//
+//            System.out.println("Start consuming events - to stop please press CTRL+c");
+//            // Consume with Auto-ACK
+//            channel.basicConsume(queueName, true, deliverCallback, consumerTag -> {});
+//            Thread.sleep(consumeTimeMsec);
+//
+//            System.out.printf("Done consuming events. %d record(s) received\n", result.size());
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        }
+//
+//        return result;
+//    }
 
 }
